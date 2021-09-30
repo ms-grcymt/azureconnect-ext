@@ -1,0 +1,7 @@
+az account set --subscription c5807190-2d73-4214-a65b-2416635845b8
+
+az aks get-credentials --resource-group "rg-AzCon-dev" --name "aks-azcon-dev"
+
+
+
+az aks update -n "aks-azcon-dev" -g "rg-AzCon-dev" --attach-acr acrazcondev77jbxc.azurecr.io

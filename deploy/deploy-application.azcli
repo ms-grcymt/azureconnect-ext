@@ -1,0 +1,105 @@
+declare SUBSCRIPTION_ID=xxx-xxx-x-x-xx-x-x-xxxxxx
+declare LOCATION="westeurope"
+declare APPLICATION_NAME="azcon"
+declare ENVIRONMENT_NAME="test"
+declare RESOURCE_GROUP_NAME="rg-$APPLICATION_NAME-$ENVIRONMENT_NAME"
+declare DEPLOYPATH="$PWD"
+declare ROOTPATH="$PWD/.."
+declare ENVIRONMENT_TYPE="dev" # it can be 'prod' or 'dev'
+declare DB_ADMIN_USERNAME="dbadmin"
+declare DB_ADMIN_PASSWORD="Qwertyuiop[]|"
+declare VNET_ADDRESS_PREFIX="10.20.0.0/24" # will not be used/create when ENVIRONMENT_TYPE="dev"
+declare BASEIMAGETAG=latest
+declare -r BINGMAPSKEY="Ar6iuHZYgX1BrfJs6SRJaXWbpU_HKdoe7G-OO9b2kl3rWvcawYx235GGx5FPM76O"
+declare -r SQLFWRULENAME="SetupAccountFWIP"
+
+# Set the context to the defined subscription
+az account set -s $SUBSCRIPTION_ID
+
+# Create the resource group to host the resources needed
+az group create -n $RESOURCE_GROUP_NAME -l $LOCATION
+
+# Deploy Azure Container Registry
+echo "Deploying ACR..."
+ACR_DEPLOYMENT=$(az deployment group create \
+  --resource-group $RESOURCE_GROUP_NAME \
+  --template-file ./acr/azure.deploy.bicep \
+  --parameters applicationName=$APPLICATION_NAME environment=$ENVIRONMENT_NAME \
+  --query properties.outputs)
+
+ACRNAME=$(echo $ACR_DEPLOYMENT | jq -r '.acrName.value')
+ACRLOGINSERVER=$(echo $ACR_DEPLOYMENT | jq -r '.acrLoginServer.value')
+ACRUSERNAME=$(az acr credential show -n $ACRNAME | jq -r '.username')
+ACRPASSWORD=$(az acr credential show -n $ACRNAME | jq -r '.passwords[0] .value')
+echo "ACR named ${ACRNAME}/${ACRLOGINSERVER} successfully created..."
+
+# BUILD POI
+echo "Building API-POI image..."
+echo "Changing directory to $ROOTPATH/apis/poi/web..."
+cd "$ROOTPATH/apis/poi/web"
+az acr build --image "azconnect/api-poi:${BASEIMAGETAG}" --registry $ACRNAME --file Dockerfile .
+
+# BUILD TRIPS
+echo "Building API-TRIPS image..."
+echo "Changing directory to $ROOTPATH/apis/trips..."
+cd "$ROOTPATH/apis/trips"
+az acr build --image "azconnect/api-trips:${BASEIMAGETAG}" --registry $ACRNAME --file Dockerfile .
+
+# BUILD USER-JAVA
+echo "Building API-USER-JAVA image..."
+echo "Changing directory to $ROOTPATH/apis/user-java..."
+cd "$ROOTPATH/apis/user-java"
+az acr build --image "azconnect/api-user-java:${BASEIMAGETAG}" --registry $ACRNAME --file Dockerfile .
+
+# BUILD USERPROFILE
+echo "Building API-USERPROFILE image..."
+echo "Changing directory to $ROOTPATH/apis/userprofile..."
+cd "$ROOTPATH/apis/userprofile"
+az acr build --image "azconnect/api-userprofile:${BASEIMAGETAG}" --registry $ACRNAME --file Dockerfile .
+
+# BUILD TripViewer
+echo "Building Tripviewer image..."
+echo "Changing directory to $ROOTPATH/tripviewer..."
+cd "$ROOTPATH/tripviewer"
+az acr build --image azconnect/tripviewer:latest --registry $ACRNAME --file Dockerfile .
+
+
+# Deploy App Services targeted infrastructure
+echo "Deploying AppService based infrastructure..."
+cd "$DEPLOYPATH"
+MAIN_DEPLOYMENT=$(az deployment group create \
+  --resource-group $RESOURCE_GROUP_NAME \
+  --template-file ./appService/azure.deploy.bicep \
+  --parameters applicationName=$APPLICATION_NAME environment=$ENVIRONMENT_NAME environmentType=$ENVIRONMENT_TYPE dbAdministratorPassword=$DB_ADMIN_PASSWORD dbAdministratorLogin=$DB_ADMIN_USERNAME vnetAddressPrefix=$VNET_ADDRESS_PREFIX acrLoginServer=$ACRLOGINSERVER acrUsername=$ACRUSERNAME acrPassword=$ACRPASSWORD bingMapsKey=$BINGMAPSKEY \
+  --query properties.outputs)
+
+SQL_FQDN=$(echo $MAIN_DEPLOYMENT | jq -r '.sqlServerFqdn.value')
+SQL_DBSERVER=$(echo $MAIN_DEPLOYMENT | jq -r '.sqlServerName.value')
+SQL_DBNAME=$(echo $MAIN_DEPLOYMENT | jq -r '.sqlDatabaseName.value')
+
+echo "Setting DB firewall rule for local configuration host..."
+MYCURRENTIP="$(dig +short myip.opendns.com @resolver1.opendns.com)"
+echo "Adding firewall rule for ${MYCURRENTIP} to ${SQL_DBSERVER}..."
+az sql server firewall-rule create \
+    --resource-group $RESOURCE_GROUP_NAME \
+    --server $SQL_DBSERVER \
+    --name $SQLFWRULENAME \
+    --start-ip-address $MYCURRENTIP \
+    --end-ip-address $MYCURRENTIP
+
+## IMPORTANT: sqlcmd tools needed, if not installed, use this guide: https://docs.microsoft.com/en-us/sql/linux/sql-server-linux-setup-tools?view=sql-server-ver15#ubuntu
+
+echo "Populating SQL database schema..."
+echo "Changing directory to $DEPLOYPATH/_provision-team..."
+cd "$DEPLOYPATH/_provision-team"
+echo "Creating database schema..."
+sqlcmd -U $DB_ADMIN_USERNAME -P $DB_ADMIN_PASSWORD -S $SQL_FQDN -d $SQL_DBNAME -i ./MYDrivingDB.sql -e
+echo "Populating database with seed data..."
+bash ./sql_data_init.sh -s $SQL_FQDN -u $DB_ADMIN_USERNAME -p $DB_ADMIN_PASSWORD -d $SQL_DBNAME 
+
+echo "Removing configuration host FW rule on ${SQL_DBSERVER}..."
+az sql server firewall-rule delete \
+    --resource-group $RESOURCE_GROUP_NAME \
+    --server $SQL_DBSERVER \
+    --name $SQLFWRULENAME
+

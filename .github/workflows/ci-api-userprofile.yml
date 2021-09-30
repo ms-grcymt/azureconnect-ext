@@ -1,0 +1,77 @@
+name: CI API USERPROFILE
+env: 
+  rgName: ${{ secrets.RESOURCE_GROUP_NAME }}
+  rgLocation: ${{ secrets.AZURE_LOCATION }}
+  applicationName: AzCon
+  repository: azconnect/api-userprofile
+  acrName: ${{ secrets.ACR_NAME }}
+  acrLoginServer: ${{ secrets.ACR_LOGIN_SERVER }}
+on:
+  push:
+    branches: [ main ]
+    paths: 
+      - apis/userprofile/**  
+  pull_request:
+    branches: [ main ]
+    paths: 
+      - apis/userprofile/**
+
+ # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+
+jobs:
+  test:
+    name: Build and Test App
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: apis/userprofile  
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Use Node.js
+        uses: actions/setup-node@v1
+        with:
+          node-version: 10.x
+      - run: npm ci
+      - run: npm run build --if-present
+      - run: npm test
+  acrpush:
+    needs: test
+    name: Build Container and Push to ACR
+    environment: 
+      name: dev
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: azure/login@v1
+      with:
+        creds: ${{ secrets.DEV_AZURE_CREDENTIALS }}
+    - name: Build Image
+      working-directory: apis/userprofile
+      run: |
+        az acr repository untag -n ${{env.acrName}} --image ${{env.repository}}:latest
+        az acr build --image ${{env.repository}}:${{github.run_number}} --registry ${{env.acrName}} --file Dockerfile .
+        az acr import -n ${{env.acrName}} --source ${{env.acrLoginServer}}/${{env.repository}}:${{github.run_number}} --image ${{env.repository}}:latest
+
+  deploy:
+    needs: acrpush
+    name: Deploy to Staging slot
+    environment: 
+      name: dev
+    runs-on: ubuntu-latest
+    steps:
+    - uses: azure/login@v1
+      with:
+        creds: ${{ secrets.DEV_AZURE_CREDENTIALS }}
+    - name: Azure WebApp Deploy
+      uses: Azure/webapps-deploy@v2
+      with:
+        # Name of the Azure Web App
+        app-name: api-userprofile-azcon-dev
+        # Enter an existing Slot other than the Production slot
+        slot-name: staging
+        # Applies to Web App Containers only: Specify the fully qualified container image(s) name. For example, 'myregistry.azurecr.io/nginx:latest' or 'python:3.7.2-alpine/'. For multi-container scenario multiple container image names can be provided (multi-line separated)
+        images: ${{env.acrLoginServer}}/${{env.repository}}:${{github.run_number}}

@@ -1,0 +1,27 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "applicationName": {
+      "value": "azconn"
+    },
+    "environment": {
+      "value": "dev2"
+    },
+    "environmentType": {
+      "value": "dev"
+    },
+    "dbAdministratorPassword": {
+      "value": "Qwertyuiop[]|"
+    },
+    "bingMapsKey": {
+      "value": "Ar6iuHZYgX1BrfJs6SRJaXWbpU_HKdoe7G-OO9b2kl3rWvcawYx235GGx5FPM76O"
+    },
+    "tags": {
+      "value": {
+        "owner": "myself",
+        "costCenter": "personal wallet"
+      }
+    }
+  }
+}

@@ -1,0 +1,136 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/use-regex: "true"
+  name: api-ingress
+  namespace: api
+spec:
+  rules:
+    - http:
+        paths:
+        - path: /api/poi.*
+          pathType: Prefix
+          backend:
+            service: 
+              name: poi
+              port: 
+                number: 80
+        - path: /api/docs/poi.*
+          pathType: Prefix
+          backend:
+            service: 
+              name: poi
+              port: 
+                number: 80
+        - path: /swagger/docs/poi.*
+          pathType: Prefix
+          backend:
+            service: 
+              name: poi
+              port: 
+                number: 80
+        - path: /api/healthcheck/poi.*
+          pathType: Prefix
+          backend:
+            service: 
+              name: poi
+              port: 
+                number: 80      
+        - path: /api/trips.*
+          pathType: Prefix
+          backend:
+            service: 
+              name: trips
+              port: 
+                number: 80
+        - path: /api/docs/trips.*
+          pathType: Prefix
+          backend:
+            service: 
+              name: trips
+              port: 
+                number: 80
+        - path: /swagger/docs/trips.*
+          pathType: Prefix
+          backend:
+            service: 
+              name: trips
+              port: 
+                number: 80
+        - path: /api/healthcheck/trips.*
+          pathType: Prefix
+          backend:
+            service: 
+              name: trips
+              port: 
+                number: 80
+        - path: /api/user-java.*
+          pathType: Prefix
+          backend:
+            service: 
+              name: user-java
+              port: 
+                number: 80
+        - path: /api/healthcheck/user-java.*
+          pathType: Prefix
+          backend:
+            service: 
+              name: user-java
+              port: 
+                number: 80
+        - path: /api/docs/user-java.*
+          pathType: Prefix
+          backend:
+            service: 
+              name: user-java
+              port: 
+                number: 80
+        - path: /swagger/docs/user-java.*
+          pathType: Prefix
+          backend:
+            service: 
+              name: user-java
+              port: 
+                number: 80
+        - path: /api/user.*
+          pathType: Prefix
+          backend:
+            service: 
+              name: userprofile
+              port: 
+                number: 80
+        - path: /api/healthcheck/user.*
+          pathType: Prefix
+          backend:
+            service: 
+              name: userprofile
+              port: 
+                number: 80
+        - path: /api/docs/user.*
+          pathType: Prefix
+          backend:
+            service: 
+              name: userprofile
+              port: 
+                number: 80
+        - path: /swagger/docs/user.*
+          pathType: Prefix
+          backend:
+            service: 
+              name: userprofile
+              port: 
+                number: 80
+        # - backend:
+        #     serviceName: user-java
+        #     servicePort: 80
+        #   path: /api/documentation/user-java      
+        # - backend:
+        #     serviceName: user-java
+        #     servicePort: 80
+        #   path: /api/swagger-resources
+        # - backend:
+        #     serviceName: user-java
+        #     servicePort: 80
+        #   path: /api/api-docs

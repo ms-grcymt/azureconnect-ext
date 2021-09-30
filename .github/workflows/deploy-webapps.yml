@@ -1,0 +1,40 @@
+# This is a workflow that creates the four web apps by using bicep code
+name: IaC Web Apps
+
+# This workflow will run on push and on demand
+on:
+  # Triggers the workflow on push event but only for the main branch
+  push:
+    branches: [ main ]
+    paths: 
+    - 'deploy/appService/**'
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# 
+jobs:
+  deployDev:
+    name: Deploy to Development
+    environment: 
+      name: dev
+    runs-on: ubuntu-latest
+    env:
+      rgName: ${{ secrets.RESOURCE_GROUP_NAME }}
+      rgLocation: ${{ secrets.AZURE_LOCATION }}
+    steps:
+    - uses: actions/checkout@master
+    - uses: azure/login@v1
+      with:
+        creds: ${{ secrets.DEV_AZURE_CREDENTIALS }}
+    - uses: Azure/CLI@v1
+      with:
+        inlineScript: |
+          #!/bin/bash
+          az group create --name ${{ env.rgName }} --location ${{ env.rgLocation }}
+          echo "Azure resource group created"
+    - uses: azure/arm-deploy@v1
+      with:
+        resourceGroupName: ${{ env.rgName }}
+        template: ./deploy/appService/azure.deploy.bicep
+        failOnStdErr: false
+        parameters: applicationName=AzCon environment=dev dbAdministratorPassword=${{ secrets.ADMIN_PASS }} acrLoginServer=${{ secrets.ACR_LOGIN_SERVER }} acrUsername=${{ secrets.ACR_USERNAME }} acrPassword=${{ secrets.ACR_PASSWORD }} bingMapsKey=${{ secrets.BING_MAPS_KEY }}

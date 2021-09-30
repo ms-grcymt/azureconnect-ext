@@ -1,0 +1,35 @@
+name: CD API POI
+env: 
+  rgName: ${{ secrets.RESOURCE_GROUP_NAME }}
+  rgLocation: ${{ secrets.AZURE_LOCATION }}
+  applicationName: AzCon
+on:
+  push:
+    tags:
+      - "v*"
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:  
+  
+jobs:
+  deploy:
+    name: Promote Staging to Production
+    runs-on: ubuntu-latest
+    
+    environment:
+      name: dev
+      url: ${{ steps.slot_swap.outputs.url }}
+
+    steps:
+    - name: Login via Azure CLI
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.DEV_AZURE_CREDENTIALS }}
+
+    - name: Swap staging slot into production
+      id: slot_swap
+      run: |
+        WEBAPP_NAME="api-poi-${{ env.applicationName }}-dev"
+        az webapp deployment slot swap -g ${{ env.rgName }} -n $WEBAPP_NAME -s staging
+        url=$(az webapp show -g ${{ env.rgName }} -n $WEBAPP_NAME --query "defaultHostName" -o tsv)
+        echo "::set-output name=url::http://$url"

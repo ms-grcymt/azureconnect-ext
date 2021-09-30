@@ -1,0 +1,56 @@
+name: CI TRIPVIEWER
+env: 
+  rgName: ${{ secrets.RESOURCE_GROUP_NAME }}
+  rgLocation: ${{ secrets.AZURE_LOCATION }}
+  applicationName: AzCon
+  repository: azconnect/tripviewer
+  acrName: ${{ secrets.ACR_NAME }}
+  acrLoginServer: ${{ secrets.ACR_LOGIN_SERVER }}
+on:
+  push:
+    branches: [ main ]
+    paths: 
+    - tripviewer/**
+  pull_request:
+    branches: [ main ]
+    paths: 
+    - tripviewer/**
+ # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+  
+jobs:
+
+  acrpush:
+    name: Build Container and Push to ACR
+    environment: 
+      name: dev
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: azure/login@v1
+      with:
+        creds: ${{ secrets.DEV_AZURE_CREDENTIALS }}
+    - name: Build Image
+      working-directory: tripviewer
+      run: |
+        az acr repository untag -n ${{env.acrName}} --image ${{env.repository}}:latest
+        az acr build --image ${{env.repository}}:${{github.run_number}} --registry ${{env.acrName}} --file Dockerfile .
+        az acr import -n ${{env.acrName}} --source ${{env.acrLoginServer}}/${{env.repository}}:${{github.run_number}} --image ${{env.repository}}:latest
+
+  deploy:
+    needs: acrpush
+    name: Deploy to App Service
+    environment: 
+      name: dev
+    runs-on: ubuntu-latest
+    steps:
+    - uses: azure/login@v1
+      with:
+        creds: ${{ secrets.DEV_AZURE_CREDENTIALS }}
+    - name: Azure WebApp Deploy
+      uses: Azure/webapps-deploy@v2
+      with:
+        # Name of the Azure Web App
+        app-name: app-tripviewer-azcon-dev
+        # Applies to Web App Containers only: Specify the fully qualified container image(s) name. For example, 'myregistry.azurecr.io/nginx:latest' or 'python:3.7.2-alpine/'. For multi-container scenario multiple container image names can be provided (multi-line separated)
+        images: ${{env.acrLoginServer}}/${{env.repository}}:latest

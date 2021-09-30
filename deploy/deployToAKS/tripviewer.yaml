@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tripviewer-deploy
+  namespace: web
+  labels:
+    deploy: tripviewer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tripviewer
+  template:
+    metadata:
+      labels:
+        app: tripviewer
+    spec:
+      containers:
+      - image: "acrazcondev77jbxc.azurecr.io/azconnect/tripviewer:latest"
+        imagePullPolicy: Always
+        name: tripviewer
+        ports:
+          - containerPort: 80
+            name: http
+            protocol: TCP
+        env:
+          - name: USER_ROOT_URL
+            value: "http://userprofile.api.svc.cluster.local"
+          - name: POI_ROOT_URL
+            value: "http://poi.api.svc.cluster.local"
+          - name: TRIPS_ROOT_URL
+            value: "http://trips.api.svc.cluster.local"
+          - name: USER_JAVA_ROOT_URL
+            value: "http://user-java.api.svc.cluster.local"
+          - name: BING_MAPS_KEY
+            value: "AnTitvaw39e26fx3PIkarirTirJmpVlWeaAUw4GLT867xfJkCdwv2Bd3-sthNsId"
+          - name: ASPNETCORE_ENVIRONMENT
+            value: Development
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tripviewer
+  namespace: web
+spec:
+  type: LoadBalancer
+  selector:
+    app: tripviewer
+  ports:
+    - protocol: TCP
+      name: tripviewer-http 
+      port: 80
+      targetPort: 80
+    - protocol: TCP
+      name: tripviewer-https
+      port: 443
+      targetPort: 443

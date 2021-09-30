@@ -23,7 +23,7 @@ To understand each of the components above in more detail, please visit the read
 
 ## Deploy the application
 
-To create the necessary resources to see the application in action on Azure, please run the bash script in the folder **/deploy/deploy-application.azcli** which will create the following indicative resources:
+To create the necessary resources to see the application in action on Azure, please run the bash script in the folder **/deploy/deploy-application.azcli** with [Az CLI](https://docs.microsoft.com/en-us/cli/azure/) installed or via [Azure Cloud Shell](https://shell.azure.com), which will create the following indicative resources:
 
 
 | Azure resource           | Pricing tier/SKU       | Purpose                                 | Registered Resource Providers |
